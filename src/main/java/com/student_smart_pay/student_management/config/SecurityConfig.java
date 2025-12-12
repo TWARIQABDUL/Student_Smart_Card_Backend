@@ -15,7 +15,7 @@ public class SecurityConfig {
         http
             .csrf(csrf -> csrf.disable()) // Critical: Disable CSRF for Mobile Apps
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/payment/**").permitAll() // Open the Payment API
+                .requestMatchers("/api/payment/**","/api/student/**").permitAll() // Open the Payment API
                 .anyRequest().authenticated() // Lock everything else
             );
         
