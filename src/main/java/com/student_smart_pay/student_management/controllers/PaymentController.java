@@ -1,5 +1,6 @@
 package com.student_smart_pay.student_management.controllers;
 
+import com.student_smart_pay.student_management.dto.RegisterRequestDto;
 import com.student_smart_pay.student_management.models.Student;
 import com.student_smart_pay.student_management.service.StudentService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,18 +19,9 @@ public class PaymentController {
     // DTO: Defines what JSON the mobile app should send
     public record PaymentRequest(String nfcToken, BigDecimal amount) {}
 
-    @PostMapping("/deduct")
-    public ResponseEntity<?> deductMoney(@RequestBody PaymentRequest request) {
-        try {
-            // Call the Service to do the hard work
-            Student updatedStudent = studentService.processPayment(request.nfcToken, request.amount);
-            
-            // Return success
-            return ResponseEntity.ok("Payment Successful! New Balance: " + updatedStudent.getWalletBalance());
-            
-        } catch (Exception e) {
-            // If the Service throws an error (e.g., "Insufficient Funds"), send it to the mobile app
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
+    @PostMapping("/api/v1/auth/register")
+    public ResponseEntity<?> registerUser(@RequestBody RegisterRequestDto studentDto) {
+        Student registeredStudent = studentService.registerUser(studentDto);
+        return ResponseEntity.ok(registeredStudent);
     }
 }
