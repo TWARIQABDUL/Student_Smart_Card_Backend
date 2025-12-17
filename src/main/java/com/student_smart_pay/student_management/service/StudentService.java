@@ -5,7 +5,7 @@ import com.student_smart_pay.student_management.dto.Roles;
 import com.student_smart_pay.student_management.models.Student;
 import com.student_smart_pay.student_management.repository.StudentRepository;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.crypto.password.PasswordEncoder; // Import
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -21,9 +21,9 @@ public class StudentService {
     private StudentRepository studentRepository;
 
     @Autowired
-    private PasswordEncoder passwordEncoder; // Inject the encoder
+    private PasswordEncoder passwordEncoder;
 
-    // --- ID GENERATOR (Keep existing) ---
+    // --- ID GENERATOR ---
     private String generateSmartId(Roles role) {
         String prefix = switch (role) {
             case STUDENT -> "STU";
@@ -38,9 +38,8 @@ public class StudentService {
         return String.format("%s-%s-%s%d", prefix, year, timeComponent, randomSuffix);
     }
 
-    // --- REGISTER (HASHING ADDED) ---
+    // --- REGISTER ---
     public Student registerUser(RegisterRequestDto studentDto) {
-        // Validation
         if (studentRepository.findByEmail(studentDto.getEmail()).isPresent()) {
             throw new IllegalStateException("Email already registered");
         }
@@ -50,12 +49,14 @@ public class StudentService {
         student.setEmail(studentDto.getEmail());
         student.setRole(studentDto.getRole());
 
-        // --- SECURITY FIX: HASH PASSWORD ---
-        // Never store raw passwords!
+        // Hash Password
         String encodedPassword = passwordEncoder.encode(studentDto.getPassword());
         student.setPassword(encodedPassword);
+        
+        // 🚀 SET FIRST LOGIN FLAG
+        student.setFirstLogin(true);
 
-        // Generate ID
+        // Generate ID & Token
         String smartId = generateSmartId(student.getRole());
         student.setNfcToken(smartId);
 
@@ -72,13 +73,10 @@ public class StudentService {
         return studentRepository.save(student);
     }
 
-    // --- AUTHENTICATE (MATCHING FIX) ---
+    // --- AUTHENTICATE ---
     public Student authenticate(String email, String password) {
         Optional<Student> studentOpt = studentRepository.findByEmail(email);
 
-        // --- SECURITY FIX: USE matches() ---
-        // We cannot use .equals() because the DB has a hash, and input is plain text.
-        // passwordEncoder.matches(raw, hash) handles the verification.
         if (studentOpt.isEmpty() || !passwordEncoder.matches(password, studentOpt.get().getPassword())) {
             throw new IllegalArgumentException("Invalid email or password");
         }
@@ -90,5 +88,24 @@ public class StudentService {
         }
 
         return student;
+    }
+
+    // --- 🚀 NEW: CHANGE PASSWORD (For First Login) ---
+    public Student changePassword(String email, String oldPassword, String newPassword) {
+        Student student = studentRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
+        // 1. Verify OLD Password
+        if (!passwordEncoder.matches(oldPassword, student.getPassword())) {
+            throw new IllegalArgumentException("Incorrect current password");
+        }
+
+        // 2. Hash NEW Password
+        student.setPassword(passwordEncoder.encode(newPassword));
+
+        // 3. Disable the First Login Flag
+        student.setFirstLogin(false);
+
+        return studentRepository.save(student);
     }
 }

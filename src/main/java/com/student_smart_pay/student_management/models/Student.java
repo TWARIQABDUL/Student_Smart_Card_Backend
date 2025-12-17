@@ -45,5 +45,7 @@ public class Student {
     @Min(value = 0, message = "Balance cannot be negative")
     private BigDecimal walletBalance = BigDecimal.ZERO;
 
+    @Column(nullable = false)
+    private boolean isFirstLogin = true;
     private boolean isActive = true;
 }
