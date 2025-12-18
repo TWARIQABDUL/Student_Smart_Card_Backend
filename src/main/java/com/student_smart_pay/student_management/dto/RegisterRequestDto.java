@@ -1,15 +1,17 @@
 package com.student_smart_pay.student_management.dto;
 
-import lombok.Getter;
-import lombok.Setter;
+import lombok.Data;
 
-@Getter
-@Setter
+@Data
 public class RegisterRequestDto {
+    // --- USER INPUTS ---
     private String name;
     private String email;
     private String password;
+    
+    // Default to STUDENT if not sent
     private Roles role = Roles.STUDENT;
 
-    // Getters and Setters
+    // Optional: Only used if Super Admin is registering someone
+    private Long campusId; 
 }

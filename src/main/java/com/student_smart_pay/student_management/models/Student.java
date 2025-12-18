@@ -55,6 +55,10 @@ public class Student implements UserDetails { // <--- 1. ADD THIS INTERFACE
     // Optional Relationship (if you added it)
     @OneToMany(mappedBy = "student", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<AccessLog> accessLogs;
+    
+    @ManyToOne(fetch = FetchType.EAGER) // Load campus details automatically on login
+    @JoinColumn(name = "campus_id")
+    private Campus campus;
 
     // =================================================================
     // 👇 2. IMPLEMENT REQUIRED METHODS (Authentication Logic)

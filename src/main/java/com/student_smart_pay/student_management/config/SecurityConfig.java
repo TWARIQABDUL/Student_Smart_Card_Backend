@@ -24,8 +24,10 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable()) // Disable CSRF for Mobile APIs
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/v1/auth/**").permitAll() // Open Login/Register
-                .requestMatchers("/api/v1/gate/**").hasRole("GUARD")
-                .requestMatchers("/api/v1/student/**").hasAnyRole("STUDENT", "ADMIN")
+                .requestMatchers("/api/v1/gate/**").hasAnyRole("GUARD", "CAMPUS_ADMIN", "SUPER_ADMIN")
+                .requestMatchers("/api/v1/student/**").hasAnyRole("STUDENT", "CAMPUS_ADMIN", "SUPER_ADMIN")
+                .requestMatchers("/api/v1/campus/**").hasAnyRole("CAMPUS_ADMIN", "SUPER_ADMIN")
+
                 .anyRequest().authenticated()                   // Lock everything else (like Gate/Scanner)
             )
             .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS)) // No Sessions (JWT is Stateless)

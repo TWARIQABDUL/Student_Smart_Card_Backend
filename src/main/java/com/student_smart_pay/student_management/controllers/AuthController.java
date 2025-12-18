@@ -1,6 +1,6 @@
 package com.student_smart_pay.student_management.controllers;
 
-import com.student_smart_pay.student_management.dto.FirstLoginChangePasswordDto; // ⚠️ Make sure to create/import this
+import com.student_smart_pay.student_management.dto.FirstLoginChangePasswordDto; 
 import com.student_smart_pay.student_management.dto.LoginRequestDto;
 import com.student_smart_pay.student_management.dto.LoginResponseDto;
 import com.student_smart_pay.student_management.dto.RegisterRequestDto;
@@ -28,6 +28,7 @@ public class AuthController {
 
     // --- HELPER: Convert Entity to DTO ---
     private UserDto mapToUserDto(Student student) {
+        // 👇 FIX: Added student.getCampus() at the end
         return new UserDto(
             student.getName(),
             student.getEmail(),
@@ -35,7 +36,8 @@ public class AuthController {
             student.getRole(),
             student.getWalletBalance(),
             student.getValidUntil(),
-            student.isActive()
+            student.isActive(),
+            student.getCampus() 
         );
     }
 
@@ -54,14 +56,14 @@ public class AuthController {
         }
     }
 
-    // --- LOGIN (UPDATED WITH CHECK) ---
+    // --- LOGIN ---
     @PostMapping("/auth/login")
     public ResponseEntity<?> loginUser(@RequestBody LoginRequestDto loginDto) {
         try {
             // 1. Authenticate (Checks DB)
             Student student = studentService.authenticate(loginDto.getEmail(), loginDto.getPassword());
 
-            // 2. 🚀 CHECK: IS IT FIRST LOGIN?
+            // 2. CHECK: IS IT FIRST LOGIN?
             if (student.isFirstLogin()) {
                 return ResponseEntity.ok(Map.of(
                     "status", "FORCE_CHANGE_PASSWORD",
@@ -78,20 +80,16 @@ public class AuthController {
             return ResponseEntity.ok(new LoginResponseDto(token, "Login successful", safeUser));
 
         } catch (IllegalArgumentException e) {
-            // 401 Unauthorized (Wrong password/email)
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Invalid email or password"));
-
         } catch (IllegalStateException e) {
-            // 403 Forbidden (Account suspended)
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", e.getMessage()));
-
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", "Login failed"));
         }
     }
 
-    // --- 🚀 NEW: FORCE CHANGE PASSWORD ENDPOINT ---
+    // --- FORCE CHANGE PASSWORD ENDPOINT ---
     @PostMapping("/auth/change-first-password")
     public ResponseEntity<?> changeFirstPassword(@RequestBody FirstLoginChangePasswordDto request) {
         try {

@@ -1,8 +1,10 @@
 package com.student_smart_pay.student_management.service;
 
 import com.student_smart_pay.student_management.dto.GateVerifyRequestDto;
+import com.student_smart_pay.student_management.dto.Roles;
 import com.student_smart_pay.student_management.dto.Status;
 import com.student_smart_pay.student_management.models.AccessLog;
+import com.student_smart_pay.student_management.models.Campus;
 import com.student_smart_pay.student_management.models.Student;
 import com.student_smart_pay.student_management.repository.AccessLogRepository;
 import com.student_smart_pay.student_management.repository.StudentRepository;
@@ -31,7 +33,9 @@ public class GateService {
     // =========================================================================
     // 1. VERIFY ENTRY (SCANNER LOGIC)
     // =========================================================================
-    public Map<String, Object> verifyEntry(GateVerifyRequestDto request) {
+    // ⚠️ Updated to accept the 'guard' performing the scan
+    public Map<String, Object> verifyEntry(Student guard, GateVerifyRequestDto request) {
+        
         Optional<Student> studentOpt = studentRepository.findByNfcToken(request.getNfcToken());
         
         AccessLog log = new AccessLog();
@@ -39,76 +43,108 @@ public class GateService {
         log.setGateId(request.getGateId());
         log.setTimestamp(LocalDateTime.now());
 
-        // A. CHECK: Does card exist?
+        // A. CHECK: DOES CARD EXIST?
         if (studentOpt.isEmpty()) {
             log.setStatus(Status.DENIED);
             log.setDenialReason("INVALID_CARD");
             accessLogRepository.save(log); 
-            throw new IllegalArgumentException("Unknown Card Token");
+            // We return a polite map instead of crashing, so the App shows "Red Screen"
+            return buildResponse(Status.DENIED, "Unknown", "Unknown Card", "INVALID_CARD");
         }
 
         Student student = studentOpt.get();
-        
-        // --- 🔗 SET RELATIONSHIP ---
         log.setStudent(student); 
         log.setSnapshotName(student.getName());
         log.setSnapshotEmail(student.getEmail());
 
-        // B. CHECK: Is account suspended?
+        // B. 🚀 SECURITY CHECK: CROSS-CAMPUS SCAN
+        // The Guard's Campus MUST match the Student's Campus
+        if (guard.getCampus() != null && !guard.getCampus().getId().equals(student.getCampus().getId())) {
+            log.setStatus(Status.DENIED);
+            log.setDenialReason("WRONG_CAMPUS");
+            accessLogRepository.save(log);
+            return buildResponse(Status.DENIED, student.getName(), student.getRole().name(), "Restricted: Wrong Campus");
+        }
+
+        // C. CHECK: ACCOUNT SUSPENDED?
         if (!student.isActive()) {
             log.setStatus(Status.DENIED);
-            log.setDenialReason("ACCOUNT_SUSPENDED");
+            log.setDenialReason("SUSPENDED");
             accessLogRepository.save(log);
-            throw new IllegalStateException("Student Account is Suspended");
+            return buildResponse(Status.DENIED, student.getName(), student.getRole().name(), "Account Suspended");
         }
 
-        // C. CHECK: Is card expired?
+        // D. CHECK: CARD EXPIRED?
         if (student.getValidUntil().isBefore(LocalDateTime.now())) {
             log.setStatus(Status.DENIED);
-            log.setDenialReason("CARD_EXPIRED");
+            log.setDenialReason("EXPIRED");
             accessLogRepository.save(log);
-            throw new IllegalStateException("Card Expired");
+            return buildResponse(Status.DENIED, student.getName(), student.getRole().name(), "Card Expired");
         }
 
-        // D. SUCCESS
+        // E. SUCCESS!
         log.setStatus(Status.ALLOWED);
         accessLogRepository.save(log);
 
-        return Map.of(
-            "status", Status.ALLOWED,
-            "studentName", student.getName(),
-            "role", student.getRole(),
-            "message", "Access Granted"
-        );
+        return buildResponse(Status.ALLOWED, student.getName(), student.getRole().name(), "Access Granted");
     }
 
     // =========================================================================
     // 2. GET HISTORY (DASHBOARD LOGIC)
     // =========================================================================
-    public List<Map<String, Object>> getAccessHistory(LocalDateTime start, LocalDateTime end, int limit) {
+    public List<Map<String, Object>> getAccessHistory(Student requester, LocalDateTime start, LocalDateTime end, int limit) {
         
-        // A. Defaults: If no dates provided, show last 7 days
         if (end == null) end = LocalDateTime.now();
         if (start == null) start = end.minusDays(7); 
-
-        // B. Pagination: Limit the results (e.g. Top 50)
         Pageable pageRequest = PageRequest.of(0, limit);
 
-        // C. Query DB using the method we added to AccessLogRepository
-        Page<AccessLog> logs = accessLogRepository.findByTimestampBetweenOrderByTimestampDesc(start, end, pageRequest);
+        Page<AccessLog> logs;
 
-        // D. Convert to JSON-friendly Map
+        // 🚀 LOGIC: Filter based on who is asking
+        if (requester.getRole() == Roles.SUPER_ADMIN) {
+            // Super Admin sees EVERYTHING
+            logs = accessLogRepository.findByTimestampBetweenOrderByTimestampDesc(start, end, pageRequest);
+        } 
+        else if (requester.getRole() == Roles.CAMPUS_ADMIN) {
+            // Campus Admin sees ONLY their campus logs
+            Campus c = requester.getCampus();
+            if (c == null) throw new IllegalStateException("Admin has no campus");
+            
+            logs = accessLogRepository.findByStudent_Campus_IdAndTimestampBetweenOrderByTimestampDesc(
+                c.getId(), start, end, pageRequest
+            );
+        } 
+        else {
+            // Guards/Students shouldn't use this endpoint for dashboarding, but safe default:
+            throw new SecurityException("Access Denied: You cannot view global logs.");
+        }
+
         return logs.getContent().stream().map(log -> {
             Map<String, Object> map = new HashMap<>();
             map.put("id", log.getId());
-            // Use snapshot name in case student was deleted later
             map.put("studentName", log.getSnapshotName() != null ? log.getSnapshotName() : "Unknown");
             map.put("nfcToken", log.getNfcToken());
             map.put("status", log.getStatus());
             map.put("reason", log.getDenialReason());
             map.put("time", log.getTimestamp());
             map.put("gateId", log.getGateId());
+            
+            // Add Campus Name to logs (Useful for Super Admin)
+            if (log.getStudent() != null && log.getStudent().getCampus() != null) {
+                map.put("campus", log.getStudent().getCampus().getName());
+            }
+            
             return map;
         }).collect(Collectors.toList());
+    }
+
+    // Helper to build consistent JSON response
+    private Map<String, Object> buildResponse(Status status, String name, String role, String message) {
+        return Map.of(
+            "status", status,
+            "studentName", name,
+            "role", role,
+            "message", message
+        );
     }
 }

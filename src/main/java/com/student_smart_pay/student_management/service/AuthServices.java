@@ -28,7 +28,8 @@ public class AuthServices {
         String prefix = switch (role) {
             case STUDENT -> "STU";
             case GUARD -> "GRD";
-            case ADMIN -> "ADM";
+            case CAMPUS_ADMIN -> "CAD"; // Added for Campus Admin
+            case SUPER_ADMIN -> "SUP";
             case GUEST -> "GST";
         };
         LocalDateTime now = LocalDateTime.now();

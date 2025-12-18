@@ -13,25 +13,32 @@ import java.util.List;
 @Repository
 public interface AccessLogRepository extends JpaRepository<AccessLog, Long> {
     
-    // 1. Find all logs for a specific student
+    // 1. Basic Finders
     List<AccessLog> findByStudentId(Long studentId);
-
-    // 2. Find all logs for a specific Gate
     List<AccessLog> findByGateId(String gateId);
-
-    // 3. Find logs by status
     List<AccessLog> findByStatus(Status status);
 
-    // --- NEW: FOR HISTORY FILTERING ---
-    // Finds logs between two dates and orders them newest -> oldest.
-    // The 'Pageable' parameter handles the "Limit 50" logic automatically.
+    // 2. GLOBAL HISTORY (For Super Admin)
     Page<AccessLog> findByTimestampBetweenOrderByTimestampDesc(
         LocalDateTime start, 
         LocalDateTime end, 
         Pageable pageable
     );
+
+    // 3. STUDENT PERSONAL HISTORY (For "My Logs")
     Page<AccessLog> findByStudentIdAndTimestampBetweenOrderByTimestampDesc(
         Long studentId, 
+        LocalDateTime start, 
+        LocalDateTime end, 
+        Pageable pageable
+    );
+
+    // =========================================================================
+    // 🚀 NEW: SAAS FILTER (For Campus Admins)
+    // =========================================================================
+    // This looks at AccessLog -> Student -> Campus -> ID
+    Page<AccessLog> findByStudent_Campus_IdAndTimestampBetweenOrderByTimestampDesc(
+        Long campusId, 
         LocalDateTime start, 
         LocalDateTime end, 
         Pageable pageable

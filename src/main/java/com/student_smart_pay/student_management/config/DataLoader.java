@@ -1,7 +1,9 @@
 package com.student_smart_pay.student_management.config;
 
+import com.student_smart_pay.student_management.models.Campus;
 import com.student_smart_pay.student_management.models.Student;
 import com.student_smart_pay.student_management.dto.Roles;
+import com.student_smart_pay.student_management.repository.CampusRepository;
 import com.student_smart_pay.student_management.repository.StudentRepository;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
@@ -15,30 +17,110 @@ import java.time.LocalDateTime;
 public class DataLoader {
 
     @Bean
-    CommandLineRunner initDatabase(StudentRepository repository, PasswordEncoder passwordEncoder) {
+    CommandLineRunner initDatabase(StudentRepository studentRepository,
+                                   CampusRepository campusRepository,
+                                   PasswordEncoder passwordEncoder) {
         return args -> {
-            // UPDATED: Use a format that matches our new system rules
-            String testToken = "STU-2025-TEST-0001"; 
 
-            if (repository.findByNfcToken(testToken).isEmpty()) {
-                Student student = new Student();
-                student.setName("Test Student");
-                student.setEmail("test@campus.edu");
-                student.setNfcToken(testToken); // Predictable ID for testing
-                student.setWalletBalance(new BigDecimal("100.00"));
-                student.setActive(true);
+            System.out.println("🔄 STARTING DATA LOAD...");
 
-                // Passwords must be hashed
-                student.setPassword(passwordEncoder.encode("password123"));
+            // =============================================================
+            // 1. INITIALIZE CAMPUSES
+            // =============================================================
 
-                // Valid for 4 years
-                student.setRole(Roles.STUDENT);
-                student.setValidUntil(LocalDateTime.now().plusYears(4));
-                
-                repository.save(student);
-                System.out.println("✅ TEST DATA LOADED: 'STU-2025-TEST-0001' created.");
-                System.out.println("👉 Login: test@campus.edu / password123");
+            // --- Campus A: Tech University (Blue Theme) ---
+            Campus techCampus = campusRepository.findByName("Tech University")
+                    .orElseGet(() -> {
+                        Campus c = new Campus("Tech University", "#3D5CFF", "#2B45B5", "#0F111A");
+                        c.setLogoUrl("https://img.icons8.com/color/480/university.png");
+                        c.setAbrev("TECH");
+                        return campusRepository.save(c);
+                    });
+
+            // --- Campus B: Red Rock College (Red Theme) ---
+            Campus redCampus = campusRepository.findByName("Red Rock College")
+                    .orElseGet(() -> {
+                        Campus c = new Campus("Red Rock College", "#D32F2F", "#B71C1C", "#1E0505");
+                        c.setLogoUrl("https://img.icons8.com/color/480/school.png");
+                        c.setAbrev("RRC");
+                        return campusRepository.save(c);
+                    });
+
+            System.out.println("✅ CAMPUSES LOADED: Tech Univ (Blue) & Red Rock (Red)");
+
+
+            // =============================================================
+            // 2. ROOT SUPER ADMIN (The SaaS Owner)
+            // =============================================================
+            if (studentRepository.findByEmail("root@system.com").isEmpty()) {
+                Student superAdmin = new Student();
+                superAdmin.setName("Super User");
+                superAdmin.setEmail("root@system.com");
+                superAdmin.setPassword(passwordEncoder.encode("root123"));
+                superAdmin.setRole(Roles.SUPER_ADMIN);
+                superAdmin.setNfcToken("SUP-ROOT-001");
+                superAdmin.setWalletBalance(BigDecimal.ZERO);
+                superAdmin.setActive(true);
+                superAdmin.setFirstLogin(false);
+                superAdmin.setValidUntil(LocalDateTime.now().plusYears(100));
+                superAdmin.setCampus(null); // Global Access
+
+                studentRepository.save(superAdmin);
+                System.out.println("🚀 SUPER ADMIN: root@system.com / root123");
             }
+
+
+            // =============================================================
+            // 3. POPULATE TECH UNIVERSITY (Blue)
+            // =============================================================
+
+            // Tech Admin
+            createDataUser(studentRepository, passwordEncoder, "Tech Admin", "admin@tech.edu", "CAD-TECH-001", Roles.CAMPUS_ADMIN, techCampus);
+            // Tech Guard
+            createDataUser(studentRepository, passwordEncoder, "Officer John", "guard@tech.edu", "GRD-TECH-001", Roles.GUARD, techCampus);
+            // Tech Student 1
+            createDataUser(studentRepository, passwordEncoder, "Alice Student", "alice@tech.edu", "STU-TECH-001", Roles.STUDENT, techCampus);
+            // Tech Student 2
+            createDataUser(studentRepository, passwordEncoder, "Bob Builder", "bob@tech.edu", "STU-TECH-002", Roles.STUDENT, techCampus);
+
+            System.out.println("🔹 TECH UNIV USERS LOADED");
+
+
+            // =============================================================
+            // 4. POPULATE RED ROCK COLLEGE (Red)
+            // =============================================================
+
+            // Red Rock Admin
+            createDataUser(studentRepository, passwordEncoder, "Red Admin", "admin@redrock.edu", "CAD-RRC-001", Roles.CAMPUS_ADMIN, redCampus);
+            // Red Rock Guard
+            createDataUser(studentRepository, passwordEncoder, "Officer Mike", "guard@redrock.edu", "GRD-RRC-001", Roles.GUARD, redCampus);
+            // Red Rock Student 1
+            createDataUser(studentRepository, passwordEncoder, "Charlie Brown", "charlie@redrock.edu", "STU-RRC-001", Roles.STUDENT, redCampus);
+            // Red Rock Student 2
+            createDataUser(studentRepository, passwordEncoder, "Diana Prince", "diana@redrock.edu", "STU-RRC-002", Roles.STUDENT, redCampus);
+
+            System.out.println("♦️ RED ROCK USERS LOADED");
+            System.out.println("✅ DATA LOAD COMPLETE");
         };
+    }
+
+    // --- Helper Method to reduce repetition ---
+    private void createDataUser(StudentRepository repo, PasswordEncoder encoder, 
+                                String name, String email, String nfcToken, 
+                                Roles role, Campus campus) {
+        if (repo.findByEmail(email).isEmpty()) {
+            Student u = new Student();
+            u.setName(name);
+            u.setEmail(email);
+            u.setNfcToken(nfcToken);
+            u.setWalletBalance(role == Roles.STUDENT ? new BigDecimal("100.00") : BigDecimal.ZERO);
+            u.setActive(true);
+            u.setFirstLogin(false);
+            u.setPassword(encoder.encode("123")); // Default password: 123
+            u.setRole(role);
+            u.setValidUntil(LocalDateTime.now().plusYears(4));
+            u.setCampus(campus);
+            repo.save(u);
+        }
     }
 }

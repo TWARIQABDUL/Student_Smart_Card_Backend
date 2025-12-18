@@ -2,6 +2,8 @@ package com.student_smart_pay.student_management.repository;
 
 import com.student_smart_pay.student_management.models.Student;
 import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.List;
 import java.util.Optional;
 
 public interface StudentRepository extends JpaRepository<Student, Long> {
@@ -12,4 +14,5 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
     
     // Useful for login later
     Optional<Student> findByEmail(String email);
+    List<Student> findByCampusId(Long campusId);
 }
