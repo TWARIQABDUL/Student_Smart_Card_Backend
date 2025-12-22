@@ -35,17 +35,20 @@ public class StudentController {
     }
 
     // --- HELPER: Convert Entity to DTO ---
+    // private UserDto mapToDto(Student student) {
+    //     return new UserDto(
+    //         student.getName(),
+    //         student.getEmail(),
+    //         student.getNfcToken(),
+    //         student.getRole(),
+    //         student.getWalletBalance(),
+    //         student.getValidUntil(),
+    //         student.isActive(),
+    //         student.getCampus()
+    //     );
+    // }
     private UserDto mapToDto(Student student) {
-        return new UserDto(
-            student.getName(),
-            student.getEmail(),
-            student.getNfcToken(),
-            student.getRole(),
-            student.getWalletBalance(),
-            student.getValidUntil(),
-            student.isActive(),
-            student.getCampus()
-        );
+        return new UserDto(student);
     }
 
     // =========================================================================

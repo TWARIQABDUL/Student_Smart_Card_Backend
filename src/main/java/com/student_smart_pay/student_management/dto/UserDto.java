@@ -1,13 +1,13 @@
 package com.student_smart_pay.student_management.dto;
 
-import com.student_smart_pay.student_management.models.Campus;
-import com.student_smart_pay.student_management.dto.Roles; // Ensure this import matches your project
+import com.student_smart_pay.student_management.models.Student; // 👈 Import Student
 import lombok.Data;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Data
 public class UserDto {
+    private Long id; // Useful for the frontend to know the ID
     private String name;
     private String email;
     private String nfcToken;      
@@ -16,28 +16,35 @@ public class UserDto {
     private LocalDateTime validUntil;
     private boolean isActive;
     
-    // 👇 NEW FIELD: Stores the theme colors
+    // 🔑 NEW FIELD: Send the QR Secret to the Mobile App
+    private String qrSecret; 
+    
+    // Theme colors
     private CampusDto campus;
 
-    // Updated Constructor
-    public UserDto(String name, String email, String nfcToken, Roles role, BigDecimal walletBalance, LocalDateTime validUntil, boolean isActive, Campus campusEntity) {
-        this.name = name;
-        this.email = email;
-        this.nfcToken = nfcToken;
-        this.role = role;
-        this.walletBalance = walletBalance;
-        this.validUntil = validUntil;
-        this.isActive = isActive;
+    // ✅ CLEANER CONSTRUCTOR: Takes the Student Entity directly
+    public UserDto(Student student) {
+        this.id = student.getId();
+        this.name = student.getName();
+        this.email = student.getEmail();
+        this.nfcToken = student.getNfcToken();
+        this.role = student.getRole();
+        this.walletBalance = student.getWalletBalance();
+        this.validUntil = student.getValidUntil();
+        this.isActive = student.isActive();
         
-        // 👇 MAP CAMPUS ENTITY TO DTO
-        if (campusEntity != null) {
+        // 🚀 Pass the secret so the App can generate QR codes
+        this.qrSecret = student.getQrSecret(); 
+
+        // Map Campus if it exists
+        if (student.getCampus() != null) {
             this.campus = new CampusDto(
-                campusEntity.getName(),
-                campusEntity.getLogoUrl(),
-                campusEntity.getPrimaryColor(),
-                campusEntity.getSecondaryColor(),
-                campusEntity.getBackgroundColor(),
-                campusEntity.getCardTextColor()
+                student.getCampus().getName(),
+                student.getCampus().getLogoUrl(),
+                student.getCampus().getPrimaryColor(),
+                student.getCampus().getSecondaryColor(),
+                student.getCampus().getBackgroundColor(),
+                student.getCampus().getCardTextColor()
             );
         }
     }

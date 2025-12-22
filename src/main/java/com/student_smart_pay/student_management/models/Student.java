@@ -7,7 +7,7 @@ import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.userdetails.UserDetails; // <--- CRITICAL IMPORT
+import org.springframework.security.core.userdetails.UserDetails;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -17,15 +17,22 @@ import java.util.List;
 @Entity
 @Table(name = "students")
 @Data
-public class Student implements UserDetails { // <--- 1. ADD THIS INTERFACE
+public class Student implements UserDetails {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    // 🔒 SECURITY UPDATE 1: This now stores the ENCRYPTED string (Ciphertext).
+    // Reading the physical card will only show gibberish (e.g. "U2FsdGVkX1...").
     @Column(unique = true, nullable = false)
     @NotBlank(message = "NFC Token is required")
     private String nfcToken;
+
+    // 🔑 SECURITY UPDATE 2: New field for Dynamic QR Codes.
+    // This stores the unique "Seed" that the mobile app uses to generate timed codes.
+    @Column(nullable = true) 
+    private String qrSecret;
 
     @NotBlank(message = "Name is required")
     private String name;
@@ -52,27 +59,25 @@ public class Student implements UserDetails { // <--- 1. ADD THIS INTERFACE
 
     private boolean isActive = true;
 
-    // Optional Relationship (if you added it)
     @OneToMany(mappedBy = "student", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<AccessLog> accessLogs;
     
-    @ManyToOne(fetch = FetchType.EAGER) // Load campus details automatically on login
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "campus_id")
     private Campus campus;
 
     // =================================================================
-    // 👇 2. IMPLEMENT REQUIRED METHODS (Authentication Logic)
+    // AUTHENTICATION LOGIC (Unchanged)
     // =================================================================
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        // Tells Spring what "Role" this user has
         return List.of(new SimpleGrantedAuthority("ROLE_" + role.name()));
     }
 
     @Override
     public String getUsername() {
-        return email; // We use EMAIL as the username
+        return email;
     }
 
     @Override
@@ -87,7 +92,7 @@ public class Student implements UserDetails { // <--- 1. ADD THIS INTERFACE
 
     @Override
     public boolean isAccountNonLocked() {
-        return isActive; // If isActive=false, account is locked
+        return isActive;
     }
 
     @Override
@@ -97,6 +102,6 @@ public class Student implements UserDetails { // <--- 1. ADD THIS INTERFACE
 
     @Override
     public boolean isEnabled() {
-        return isActive; // Only allow login if active
+        return isActive;
     }
 }

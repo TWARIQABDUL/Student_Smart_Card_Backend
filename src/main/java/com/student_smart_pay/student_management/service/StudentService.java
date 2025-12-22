@@ -22,6 +22,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID; // 👈 IMPORT UUID
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
@@ -40,10 +41,10 @@ public class StudentService {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
-    // =========================================================================
-    // 🔍 READ OPERATIONS (With SaaS Security)
-    // =========================================================================
+    @Autowired
+    private CryptoService cryptoService; // 👈 INJECT CRYPTO SERVICE
 
+    // ... (Read Operations remain the same) ...
     public List<Student> getAllStudents(Student requester) {
         if (requester.getRole() == Roles.SUPER_ADMIN) {
             return studentRepository.findAll();
@@ -58,15 +59,13 @@ public class StudentService {
     public Student getStudentById(Student requester, Long studentId) {
         Student targetStudent = studentRepository.findById(studentId)
                 .orElseThrow(() -> new IllegalArgumentException("Student not found with ID: " + studentId));
-
         validateCampusAccess(requester, targetStudent);
         return targetStudent;
     }
 
     // =========================================================================
-    // ➕ CREATE OPERATION (With Campus-Aware Smart ID)
+    // ➕ CREATE OPERATION (Admin Only + Encryption)
     // =========================================================================
-
     @Transactional
     public Student createStudent(Student requester, RegisterRequestDto dto) {
         // 1. Permission Check
@@ -91,13 +90,19 @@ public class StudentService {
         newUser.setActive(true);
         newUser.setFirstLogin(true);
         newUser.setCampus(targetCampus);
-        newUser.setWalletBalance(BigDecimal.ZERO); 
+        newUser.setWalletBalance(BigDecimal.ZERO);
         
-        // 5. Generate Smart NFC Token (Now includes Campus Abbreviation)
-        // 👇 UPDATED CALL
-        newUser.setNfcToken(generateSmartId(newUser.getRole(), targetCampus));
+        // 5. 🔒 SECURITY GENERATION
+        // A. Generate the Raw ID
+        String rawSmartId = generateSmartId(newUser.getRole(), targetCampus);
+        
+        // B. Encrypt it (So the database and physical card hold ciphertext)
+        newUser.setNfcToken(cryptoService.encrypt(rawSmartId));
 
-        // 6. Set Validity based on Role
+        // C. Generate QR Secret (For the mobile app)
+        newUser.setQrSecret(UUID.randomUUID().toString());
+
+        // 6. Set Validity
         if (newUser.getRole() == Roles.STUDENT) {
             newUser.setValidUntil(LocalDateTime.now().plusYears(4));
         } else if (newUser.getRole() == Roles.GUEST) {
@@ -109,62 +114,38 @@ public class StudentService {
         return studentRepository.save(newUser);
     }
 
-    // =========================================================================
-    // ✏️ UPDATE OPERATION
-    // =========================================================================
+    // ... (Update, Delete, Logs, Helpers remain the same) ...
 
     @Transactional
     public Student updateStudent(Student requester, Long studentId, RegisterRequestDto updates) {
         Student existingStudent = getStudentById(requester, studentId);
-
-        if (updates.getName() != null && !updates.getName().isBlank()) {
-            existingStudent.setName(updates.getName());
-        }
-
+        if (updates.getName() != null && !updates.getName().isBlank()) existingStudent.setName(updates.getName());
         if (updates.getEmail() != null && !updates.getEmail().equals(existingStudent.getEmail())) {
-            if (studentRepository.findByEmail(updates.getEmail()).isPresent()) {
-                throw new IllegalArgumentException("Email already taken.");
-            }
+            if (studentRepository.findByEmail(updates.getEmail()).isPresent()) throw new IllegalArgumentException("Email already taken.");
             existingStudent.setEmail(updates.getEmail());
         }
-
         if (requester.getRole() == Roles.SUPER_ADMIN && updates.getCampusId() != null) {
             Campus newCampus = campusRepository.findById(updates.getCampusId())
                     .orElseThrow(() -> new IllegalArgumentException("Invalid Campus ID"));
             existingStudent.setCampus(newCampus);
         }
-
         return studentRepository.save(existingStudent);
     }
-
-    // =========================================================================
-    // ❌ DELETE OPERATION
-    // =========================================================================
 
     @Transactional
     public void deleteStudent(Student requester, Long studentId) {
         Student existingStudent = getStudentById(requester, studentId);
-        
-        if (existingStudent.getId().equals(requester.getId())) {
-            throw new IllegalArgumentException("You cannot delete your own account.");
-        }
-        
+        if (existingStudent.getId().equals(requester.getId())) throw new IllegalArgumentException("You cannot delete your own account.");
         studentRepository.delete(existingStudent);
     }
-
-    // =========================================================================
-    // 📜 LOGS
-    // =========================================================================
 
     public List<Map<String, Object>> getMyLogs(Student requester, LocalDateTime start, LocalDateTime end, int limit) {
         if (end == null) end = LocalDateTime.now();
         if (start == null) start = end.minusDays(30);
-
         Pageable pageRequest = PageRequest.of(0, limit);
         Page<AccessLog> logs = accessLogRepository.findByStudentIdAndTimestampBetweenOrderByTimestampDesc(
                 requester.getId(), start, end, pageRequest
         );
-
         return logs.getContent().stream().map(log -> {
             Map<String, Object> map = new HashMap<>();
             map.put("time", log.getTimestamp());
@@ -175,11 +156,7 @@ public class StudentService {
         }).collect(Collectors.toList());
     }
 
-    // =========================================================================
-    // 🛠️ HELPERS (Including Updated Smart ID Generator)
-    // =========================================================================
-
-    // 👇 UPDATED METHOD: Accepts Campus now
+    // --- HELPERS ---
     private String generateSmartId(Roles role, Campus campus) {
         String prefix = switch (role) {
             case STUDENT -> "STU";
@@ -188,54 +165,32 @@ public class StudentService {
             case SUPER_ADMIN -> "SUP";
             default -> "USR";
         };
-        
-        // Retrieve Abbreviation (Default to "UNIV" if missing)
-        String campAbrev = (campus != null && campus.getAbrev() != null) 
-                ? campus.getAbrev().toUpperCase() 
-                : "UNIV";
-
+        String campAbrev = (campus != null && campus.getAbrev() != null) ? campus.getAbrev().toUpperCase() : "UNIV";
         LocalDateTime now = LocalDateTime.now();
         String year = String.valueOf(now.getYear());
         String timeComponent = now.format(DateTimeFormatter.ofPattern("MMddHHmmssSSS"));
         int randomSuffix = ThreadLocalRandom.current().nextInt(10, 99);
-        
-        // FORMAT: PREFIX - ABREV - YEAR - TIMESTAMP...
-        // Example: STU-MIT-2025-1218...
         return String.format("%s-%s-%s-%s%d", prefix, campAbrev, year, timeComponent, randomSuffix);
     }
 
     private Campus validateCampusAdmin(Student admin) {
-        if (admin.getCampus() == null) {
-            throw new IllegalStateException("System Error: Campus Admin has no assigned campus.");
-        }
+        if (admin.getCampus() == null) throw new IllegalStateException("System Error: Campus Admin has no assigned campus.");
         return admin.getCampus();
     }
 
     private void validateCampusAccess(Student requester, Student target) {
         if (requester.getRole() == Roles.SUPER_ADMIN) return;
-
         if (requester.getRole() == Roles.CAMPUS_ADMIN) {
             Campus adminCampus = validateCampusAdmin(requester);
-            if (!adminCampus.getId().equals(target.getCampus().getId())) {
-                throw new SecurityException("Access Denied: This student belongs to a different campus.");
-            }
+            if (!adminCampus.getId().equals(target.getCampus().getId())) throw new SecurityException("Access Denied: This student belongs to a different campus.");
             return;
         }
-
-        if (!requester.getId().equals(target.getId())) {
-            throw new SecurityException("Access Denied.");
-        }
+        if (!requester.getId().equals(target.getId())) throw new SecurityException("Access Denied.");
     }
 
     private Campus resolveTargetCampus(Student requester, Long requestedCampusId) {
-        if (requester.getRole() == Roles.CAMPUS_ADMIN) {
-            return requester.getCampus();
-        } 
-        
-        if (requestedCampusId == null) {
-            throw new IllegalArgumentException("Super Admin must specify a Campus ID.");
-        }
-        return campusRepository.findById(requestedCampusId)
-                .orElseThrow(() -> new IllegalArgumentException("Invalid Campus ID"));
+        if (requester.getRole() == Roles.CAMPUS_ADMIN) return requester.getCampus();
+        if (requestedCampusId == null) throw new IllegalArgumentException("Super Admin must specify a Campus ID.");
+        return campusRepository.findById(requestedCampusId).orElseThrow(() -> new IllegalArgumentException("Invalid Campus ID"));
     }
 }

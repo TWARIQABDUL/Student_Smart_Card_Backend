@@ -5,6 +5,7 @@ import com.student_smart_pay.student_management.models.Student;
 import com.student_smart_pay.student_management.dto.Roles;
 import com.student_smart_pay.student_management.repository.CampusRepository;
 import com.student_smart_pay.student_management.repository.StudentRepository;
+import com.student_smart_pay.student_management.service.CryptoService; // 👈 Import
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -12,6 +13,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.UUID; // 👈 Import
 
 @Configuration
 public class DataLoader {
@@ -19,7 +21,8 @@ public class DataLoader {
     @Bean
     CommandLineRunner initDatabase(StudentRepository studentRepository,
                                    CampusRepository campusRepository,
-                                   PasswordEncoder passwordEncoder) {
+                                   PasswordEncoder passwordEncoder,
+                                   CryptoService cryptoService) { // 👈 Inject CryptoService
         return args -> {
 
             System.out.println("🔄 STARTING DATA LOAD...");
@@ -58,7 +61,13 @@ public class DataLoader {
                 superAdmin.setEmail("root@system.com");
                 superAdmin.setPassword(passwordEncoder.encode("root123"));
                 superAdmin.setRole(Roles.SUPER_ADMIN);
-                superAdmin.setNfcToken("SUP-ROOT-001");
+                
+                // 🔒 ENCRYPT NFC TOKEN
+                superAdmin.setNfcToken(cryptoService.encrypt("SUP-ROOT-001"));
+                
+                // 🔑 GENERATE QR SECRET
+                superAdmin.setQrSecret(UUID.randomUUID().toString());
+                
                 superAdmin.setWalletBalance(BigDecimal.ZERO);
                 superAdmin.setActive(true);
                 superAdmin.setFirstLogin(false);
@@ -75,13 +84,13 @@ public class DataLoader {
             // =============================================================
 
             // Tech Admin
-            createDataUser(studentRepository, passwordEncoder, "Tech Admin", "admin@tech.edu", "CAD-TECH-001", Roles.CAMPUS_ADMIN, techCampus);
+            createDataUser(studentRepository, passwordEncoder, cryptoService, "Tech Admin", "admin@tech.edu", "CAD-TECH-001", Roles.CAMPUS_ADMIN, techCampus);
             // Tech Guard
-            createDataUser(studentRepository, passwordEncoder, "Officer John", "guard@tech.edu", "GRD-TECH-001", Roles.GUARD, techCampus);
+            createDataUser(studentRepository, passwordEncoder, cryptoService, "Officer John", "guard@tech.edu", "GRD-TECH-001", Roles.GUARD, techCampus);
             // Tech Student 1
-            createDataUser(studentRepository, passwordEncoder, "Alice Student", "alice@tech.edu", "STU-TECH-001", Roles.STUDENT, techCampus);
+            createDataUser(studentRepository, passwordEncoder, cryptoService, "Alice Student", "alice@tech.edu", "STU-TECH-001", Roles.STUDENT, techCampus);
             // Tech Student 2
-            createDataUser(studentRepository, passwordEncoder, "Bob Builder", "bob@tech.edu", "STU-TECH-002", Roles.STUDENT, techCampus);
+            createDataUser(studentRepository, passwordEncoder, cryptoService, "Bob Builder", "bob@tech.edu", "STU-TECH-002", Roles.STUDENT, techCampus);
 
             System.out.println("🔹 TECH UNIV USERS LOADED");
 
@@ -91,13 +100,13 @@ public class DataLoader {
             // =============================================================
 
             // Red Rock Admin
-            createDataUser(studentRepository, passwordEncoder, "Red Admin", "admin@redrock.edu", "CAD-RRC-001", Roles.CAMPUS_ADMIN, redCampus);
+            createDataUser(studentRepository, passwordEncoder, cryptoService, "Red Admin", "admin@redrock.edu", "CAD-RRC-001", Roles.CAMPUS_ADMIN, redCampus);
             // Red Rock Guard
-            createDataUser(studentRepository, passwordEncoder, "Officer Mike", "guard@redrock.edu", "GRD-RRC-001", Roles.GUARD, redCampus);
+            createDataUser(studentRepository, passwordEncoder, cryptoService, "Officer Mike", "guard@redrock.edu", "GRD-RRC-001", Roles.GUARD, redCampus);
             // Red Rock Student 1
-            createDataUser(studentRepository, passwordEncoder, "Charlie Brown", "charlie@redrock.edu", "STU-RRC-001", Roles.STUDENT, redCampus);
+            createDataUser(studentRepository, passwordEncoder, cryptoService, "Charlie Brown", "charlie@redrock.edu", "STU-RRC-001", Roles.STUDENT, redCampus);
             // Red Rock Student 2
-            createDataUser(studentRepository, passwordEncoder, "Diana Prince", "diana@redrock.edu", "STU-RRC-002", Roles.STUDENT, redCampus);
+            createDataUser(studentRepository, passwordEncoder, cryptoService, "Diana Prince", "diana@redrock.edu", "STU-RRC-002", Roles.STUDENT, redCampus);
 
             System.out.println("♦️ RED ROCK USERS LOADED");
             System.out.println("✅ DATA LOAD COMPLETE");
@@ -105,14 +114,20 @@ public class DataLoader {
     }
 
     // --- Helper Method to reduce repetition ---
-    private void createDataUser(StudentRepository repo, PasswordEncoder encoder, 
+    private void createDataUser(StudentRepository repo, PasswordEncoder encoder, CryptoService cryptoService,
                                 String name, String email, String nfcToken, 
                                 Roles role, Campus campus) {
         if (repo.findByEmail(email).isEmpty()) {
             Student u = new Student();
             u.setName(name);
             u.setEmail(email);
-            u.setNfcToken(nfcToken);
+            
+            // 🔒 ENCRYPT TOKEN
+            u.setNfcToken(cryptoService.encrypt(nfcToken));
+            
+            // 🔑 SET QR SECRET
+            u.setQrSecret(UUID.randomUUID().toString());
+            
             u.setWalletBalance(role == Roles.STUDENT ? new BigDecimal("100.00") : BigDecimal.ZERO);
             u.setActive(true);
             u.setFirstLogin(false);

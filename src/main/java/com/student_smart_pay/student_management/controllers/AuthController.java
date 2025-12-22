@@ -27,18 +27,22 @@ public class AuthController {
     private JwtService jwtService;
 
     // --- HELPER: Convert Entity to DTO ---
+    // private UserDto mapToUserDto(Student student) {
+    //     // 👇 FIX: Added student.getCampus() at the end
+    //     return new UserDto(
+    //         student.getName(),
+    //         student.getEmail(),
+    //         student.getNfcToken(),
+    //         student.getRole(),
+    //         student.getWalletBalance(),
+    //         student.getValidUntil(),
+    //         student.isActive(),
+    //         student.getCampus() 
+    //     );
+    // }
+
     private UserDto mapToUserDto(Student student) {
-        // 👇 FIX: Added student.getCampus() at the end
-        return new UserDto(
-            student.getName(),
-            student.getEmail(),
-            student.getNfcToken(),
-            student.getRole(),
-            student.getWalletBalance(),
-            student.getValidUntil(),
-            student.isActive(),
-            student.getCampus() 
-        );
+        return new UserDto(student);
     }
 
     // --- REGISTER ---
