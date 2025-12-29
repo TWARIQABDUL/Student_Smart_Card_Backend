@@ -26,7 +26,7 @@ jobs:
       run: docker build -t registry.digitalocean.com/${{ secrets.REGISTRY_NAME }}/backend-api:${{ github.sha }} .
 
     - name: Push image to DigitalOcean Container Registry
-      # CHANGED: 'backend-app' -> 'backend-api'
+      # CHANGED: 'backend-app' -> 'backend-api' 
       run: docker push registry.digitalocean.com/${{ secrets.REGISTRY_NAME }}/backend-api:${{ github.sha }}
 
     - name: Update Kubernetes deployment
