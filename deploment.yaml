@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-api  # <-- MATCHES GITHUB ACTION
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: backend-api
+  template:
+    metadata:
+      labels:
+        app: backend-api
+    spec:
+      containers:
+      - name: backend-api  # <-- MATCHES GITHUB ACTION
+        # This initial image is just a placeholder. GitHub will overwrite it.
+        image: registry.digitalocean.com/electrons-edge/backend-api:latest
+        ports:
+        - containerPort: 8080
+        envFrom:
+        - secretRef:
+            name: backend-secrets
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
