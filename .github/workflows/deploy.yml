@@ -1,0 +1,41 @@
+name: Build and Deploy to DigitalOcean K8s
+
+on:
+  push:
+    branches:
+      - main  # Or master, whichever branch you use
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Install doctl
+      uses: digitalocean/action-doctl@v2
+      with:
+        token: ${{ secrets.DO_ACCESS_TOKEN }}
+
+    - name: Log in to DigitalOcean Container Registry
+      run: doctl registry login --expiry-seconds 600
+
+    - name: Build container image
+      # This tags the image with the unique GitHub commit SHA so every build is unique
+      run: docker build -t registry.digitalocean.com/${{ secrets.REGISTRY_NAME }}/backend-app:${{ github.sha }} .
+
+    - name: Push image to DigitalOcean Container Registry
+      run: docker push registry.digitalocean.com/${{ secrets.REGISTRY_NAME }}/backend-app:${{ github.sha }}
+
+    - name: Update Kubernetes deployment
+      run: |
+        # Save cluster config to local
+        doctl kubernetes cluster kubeconfig save ${{ secrets.CLUSTER_NAME }}
+        
+        # Update the deployment image to the new version
+        # NOTE: Replace 'my-backend-deployment' with your actual deployment name
+        kubectl set image deployment/my-backend-deployment backend-container=registry.digitalocean.com/${{ secrets.REGISTRY_NAME }}/backend-app:${{ github.sha }}
+        
+        # Verify the deployment
+        kubectl rollout status deployment/my-backend-deployment
