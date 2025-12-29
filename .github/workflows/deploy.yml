@@ -3,7 +3,7 @@ name: Build and Deploy to DigitalOcean K8s
 on:
   push:
     branches:
-      - main  # Or master, whichever branch you use
+      - main
 
 jobs:
   build-and-deploy:
@@ -22,20 +22,19 @@ jobs:
       run: doctl registry login --expiry-seconds 600
 
     - name: Build container image
-      # This tags the image with the unique GitHub commit SHA so every build is unique
-      run: docker build -t registry.digitalocean.com/${{ secrets.REGISTRY_NAME }}/backend-app:${{ github.sha }} .
+      # CHANGED: 'backend-app' -> 'backend-api' to match your deployment
+      run: docker build -t registry.digitalocean.com/${{ secrets.REGISTRY_NAME }}/backend-api:${{ github.sha }} .
 
     - name: Push image to DigitalOcean Container Registry
-      run: docker push registry.digitalocean.com/${{ secrets.REGISTRY_NAME }}/backend-app:${{ github.sha }}
+      # CHANGED: 'backend-app' -> 'backend-api'
+      run: docker push registry.digitalocean.com/${{ secrets.REGISTRY_NAME }}/backend-api:${{ github.sha }}
 
     - name: Update Kubernetes deployment
       run: |
-        # Save cluster config to local
         doctl kubernetes cluster kubeconfig save ${{ secrets.CLUSTER_NAME }}
         
-        # Update the deployment image to the new version
-        # NOTE: Replace 'my-backend-deployment' with your actual deployment name
-        kubectl set image deployment/my-backend-deployment backend-container=registry.digitalocean.com/${{ secrets.REGISTRY_NAME }}/backend-app:${{ github.sha }}
+        # CHANGED: deployment/backend-deployment -> deployment/backend-api
+        # CHANGED: backend-container -> backend-api
+        kubectl set image deployment/backend-api backend-api=registry.digitalocean.com/${{ secrets.REGISTRY_NAME }}/backend-api:${{ github.sha }}
         
-        # Verify the deployment
-        kubectl rollout status deployment/my-backend-deployment
+        kubectl rollout status deployment/backend-api
