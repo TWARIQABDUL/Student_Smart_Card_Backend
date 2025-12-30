@@ -14,7 +14,7 @@ public class WelcomePage {
     @GetMapping("/")
     public ResponseEntity<Map<String, String>> welcome() {
         return ResponseEntity.status(200).body(
-            Map.of("message", "Welcome to the Student Management System yoo!")
+            Map.of("message", "Welcome to the Student Management System secure")
         );
     }
 }
