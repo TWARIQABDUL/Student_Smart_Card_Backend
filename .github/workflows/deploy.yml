@@ -1,4 +1,4 @@
-name: Build and Deploy to DigitalOcean K8s
+name: Production Pipeline (CI/CD)
 
 on:
   push:
@@ -13,9 +13,26 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
+    # --- PHASE 1: PREPARATION & TESTING (Runs on PR & Merge) ---
     - name: Checkout code
       uses: actions/checkout@v3
 
+    # We run tests on Master too! You don't want to deploy if tests fail.
+    - name: Set up JDK 21
+      uses: actions/setup-java@v3
+      with:
+        java-version: '21'
+        distribution: 'temurin'
+        cache: maven
+
+    - name: Make mvnw executable
+      run: chmod +x mvnw
+
+    # 🛑 STOP HERE if the code is broken
+    - name: Run Unit Tests
+      run: ./mvnw clean test
+
+    # --- PHASE 2: DOCKER SETUP (Runs on PR & Merge) ---
     - name: Install doctl
       uses: digitalocean/action-doctl@v2
       with:
@@ -24,20 +41,23 @@ jobs:
     - name: Log in to DigitalOcean Container Registry
       run: doctl registry login --expiry-seconds 600
 
+    # We build the image to verify the Dockerfile is valid.
     - name: Build container image
-      # CHANGED: 'backend-app' -> 'backend-api' to match your deployment
       run: docker build -t registry.digitalocean.com/${{ secrets.REGISTRY_NAME }}/backend-api:${{ github.sha }} .
 
+    # --- PHASE 3: DEPLOYMENT (LOCKED: Only Runs on Merge) ---
+    
     - name: Push image to DigitalOcean Container Registry
-      # CHANGED: 'backend-app' -> 'backend-api' 
+      if: github.event_name == 'push'  # <--- ONLY ON MERGE
       run: docker push registry.digitalocean.com/${{ secrets.REGISTRY_NAME }}/backend-api:${{ github.sha }}
 
     - name: Update Kubernetes deployment
+      if: github.event_name == 'push'  # <--- ONLY ON MERGE
       run: |
         doctl kubernetes cluster kubeconfig save ${{ secrets.CLUSTER_NAME }}
         
-        # CHANGED: deployment/backend-deployment -> deployment/backend-api
-        # CHANGED: backend-container -> backend-api
+        # Update the image
         kubectl set image deployment/backend-api backend-api=registry.digitalocean.com/${{ secrets.REGISTRY_NAME }}/backend-api:${{ github.sha }}
         
+        # Watch the rollout (Zero Downtime check)
         kubectl rollout status deployment/backend-api
