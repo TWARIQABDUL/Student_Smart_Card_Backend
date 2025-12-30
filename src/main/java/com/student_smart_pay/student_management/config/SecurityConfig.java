@@ -30,6 +30,7 @@ public class SecurityConfig {
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))   // ONLY THIS LINE ADDED
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/v1/auth/**").permitAll()
+                .requestMatchers("/").permitAll()
                 .requestMatchers("/api/v1/gate/**").hasAnyRole("GUARD", "CAMPUS_ADMIN", "SUPER_ADMIN")
                 .requestMatchers("/api/v1/student/**").hasAnyRole("STUDENT", "CAMPUS_ADMIN", "SUPER_ADMIN")
                 .requestMatchers("/api/v1/campus/**").hasAnyRole("CAMPUS_ADMIN", "SUPER_ADMIN")
