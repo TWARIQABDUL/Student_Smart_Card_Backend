@@ -1,9 +1,14 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: backend-api  # <-- MATCHES GITHUB ACTION
+  name: backend-api
 spec:
   replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
   selector:
     matchLabels:
       app: backend-api
@@ -13,14 +18,30 @@ spec:
         app: backend-api
     spec:
       containers:
-      - name: backend-api  # <-- MATCHES GITHUB ACTION
-        # This initial image is just a placeholder. GitHub will overwrite it.
-        image: registry.digitalocean.com/electrons-edge/backend-api:latest
+      - name: backend-api
+        # 👇 CHANGED: Use the real SHA tag you found
+        image: registry.digitalocean.com/electrons-edge/backend-api:99cda2eeb686612fb4dc982fe7e14fcbe3fedd47
         ports:
         - containerPort: 8080
         envFrom:
         - secretRef:
             name: backend-secrets
+        
+        # Zero Downtime Probes (Keep these!)
+        readinessProbe:
+          tcpSocket:
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 5
+          failureThreshold: 3
+          successThreshold: 1
+        livenessProbe:
+          tcpSocket:
+            port: 8080
+          initialDelaySeconds: 60
+          periodSeconds: 20
+          failureThreshold: 3
+
         resources:
           requests:
             memory: "256Mi"
