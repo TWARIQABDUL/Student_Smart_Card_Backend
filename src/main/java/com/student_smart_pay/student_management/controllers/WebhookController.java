@@ -19,7 +19,7 @@ public class WebhookController {
     private CampusRepository campusRepository;
 
     // Read the secret from your environment variables
-    @Value("${app.webhook.secret}")
+    @Value("${app.webhook.w_secret}")
     private String expectedSecret;
 
     @PostMapping("/build-status")
