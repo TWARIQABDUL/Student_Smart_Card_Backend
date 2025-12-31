@@ -10,4 +10,5 @@ import java.util.Optional;
 public interface CampusRepository extends JpaRepository<Campus, Long> {
     // Find a campus by name (e.g., to check duplicates)
     Optional<Campus> findByName(String name);
+    Optional<Campus> findByPackageId(String packageId);
 }
