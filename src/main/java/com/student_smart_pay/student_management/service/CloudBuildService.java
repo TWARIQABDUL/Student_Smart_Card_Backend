@@ -16,13 +16,13 @@ import java.util.Map;
 @Service
 public class CloudBuildService {
 
-    @Value("${DEV_TOKEN}")
+    @Value("app.github.token")
     private String githubToken;
 
-    @Value("${DEV_OWNER}")
+    @Value("app.github.owner")
     private String repoOwner;
 
-    @Value("${DEV_REPO}")
+    @Value("app.github.repo")
     private String repoName;
 
     @Autowired
