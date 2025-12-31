@@ -16,13 +16,14 @@ import java.util.Map;
 @Service
 public class CloudBuildService {
 
-    @Value("app.github.token")
+    // 🔴 FIX 1: Added "${}" so it actually reads your application.properties
+    @Value("${app.github.token}")
     private String githubToken;
 
-    @Value("app.github.owner")
+    @Value("${app.github.owner}")
     private String repoOwner;
 
-    @Value("app.github.repo")
+    @Value("${app.github.repo}")
     private String repoName;
 
     @Autowired
@@ -35,8 +36,28 @@ public class CloudBuildService {
         Campus campus = campusRepository.findById(campusId)
                 .orElseThrow(() -> new IllegalArgumentException("Campus not found"));
 
-        if (campus.getPackageId() == null || campus.getLogoUrl() == null) {
-            throw new IllegalArgumentException("Campus is missing Package ID or Logo URL");
+        // ---------------------------------------------------------
+        // 🧠 FIX 2: Auto-Generate Logic
+        // ---------------------------------------------------------
+        // If Package ID is missing, we create it now and SAVE it.
+        if (campus.getPackageId() == null || campus.getPackageId().trim().isEmpty()) {
+            
+            // Clean the name: "Tech University" -> "techuniversity"
+            String cleanName = campus.getName().toLowerCase().replaceAll("[^a-z0-9]", "");
+            
+            // Create ID: "com.student_smart_pay.techuniversity"
+            String generatedId = "com.student_smart_pay." + cleanName;
+            
+            // Save to DB immediately
+            campus.setPackageId(generatedId);
+            campusRepository.save(campus);
+            
+            System.out.println("✨ Generated Package ID: " + generatedId);
+        }
+
+        // We only throw an error if the LOGO is missing (because we can't auto-generate that)
+        if (campus.getLogoUrl() == null || campus.getLogoUrl().isEmpty()) {
+            throw new IllegalArgumentException("Campus is missing Logo URL");
         }
 
         // 2. Prepare GitHub API URL
@@ -47,10 +68,10 @@ public class CloudBuildService {
         headers.setBearerAuth(githubToken);
         headers.set("Accept", "application/vnd.github.v3+json");
 
-        // 4. Create Payload (Matches your YAML)
+        // 4. Create Payload
         Map<String, Object> clientPayload = new HashMap<>();
         clientPayload.put("app_name", campus.getName());
-        clientPayload.put("package_id", campus.getPackageId());
+        clientPayload.put("package_id", campus.getPackageId()); // Now this is never null
         clientPayload.put("logo_url", campus.getLogoUrl());
 
         Map<String, Object> body = new HashMap<>();
