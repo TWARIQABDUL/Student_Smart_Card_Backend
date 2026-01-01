@@ -44,7 +44,8 @@ public class UserDto {
                 student.getCampus().getPrimaryColor(),
                 student.getCampus().getSecondaryColor(),
                 student.getCampus().getBackgroundColor(),
-                student.getCampus().getCardTextColor()
+                student.getCampus().getCardTextColor(),
+                student.getCampus().getId()
             );
         }
     }

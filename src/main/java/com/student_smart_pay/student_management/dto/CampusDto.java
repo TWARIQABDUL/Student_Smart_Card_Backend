@@ -12,4 +12,5 @@ public class CampusDto {
     private String secondaryColor;
     private String backgroundColor;
     private String cardTextColor;
+    private Long campusId;
 }
